@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>HTML → EXE Converter</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+body { font-family: system-ui, sans-serif; max-width: 700px; margin: 40px auto; text-align: center; }
+input[type=file] { margin: 20px 0; }
+button { padding: 10px 20px; font-size: 16px; }
+#msg { margin-top: 20px; font-size: 14px; color: #333; }
+</style>
+</head>
+<body>
+<h1>HTML → EXE Converter</h1>
+<p>Upload a single <code>.html</code> file to build a Windows <code>.exe</code> with GitHub Actions.</p>
+
+<input id="file" type="file" accept=".html">
+<button id="uploadBtn">Upload & Build</button>
+
+<div id="msg"></div>
+
+<script>
+const uploadBtn = document.getElementById('uploadBtn');
+const fileInput = document.getElementById('file');
+const msg = document.getElementById('msg');
+
+uploadBtn.onclick = async () => {
+  const file = fileInput.files[0];
+  if (!file) return alert("Please select an HTML file first.");
+
+  msg.textContent = "Uploading file to GitHub repository…";
+
+  // Convert to base64
+  const content = await file.text();
+  const encoded = btoa(unescape(encodeURIComponent(content)));
+
+  // Replace with your username/repo
+  const username = "aymksen";
+  const repo = "html-to-exe";
+
+  // Personal Access Token required with 'repo' and 'workflow' scopes
+  const token = prompt("Enter your GitHub Personal Access Token (repo + workflow scopes):");
+
+  const url = `https://api.github.com/repos/${username}/${repo}/contents/input.html`;
+
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: {
+      Authorization: "token " + token,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      message: "Upload HTML file for EXE build",
+      content: encoded,
+    }),
+  });
+
+  if (res.ok) {
+    msg.textContent = "✅ Uploaded! The GitHub Action will start automatically. Check the Actions tab in your repo.";
+  } else {
+    const err = await res.text();
+    msg.textContent = "❌ Error: " + err;
+  }
+};
+</script>
+</body>
+</html>

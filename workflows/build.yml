@@ -1,0 +1,35 @@
+name: Build EXE from HTML
+on:
+  push:
+    paths:
+      - "input.html"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Prepare files
+        run: |
+          mkdir app
+          move input.html app\index.html
+          echo '{ "name": "html-to-exe", "version": "1.0.0", "main": "main.js", "scripts": { "build": "electron-builder --win --x64" }, "devDependencies": { "electron": "^28.0.0", "electron-builder": "^24.6.0" }, "build": { "appId": "com.htmltoexe.app", "directories": { "output": "dist" }, "win": { "target": ["nsis"] } } }' > package.json
+          echo const^{ }{app,BrowserWindow}=require('electron');const path=require('path');app.whenReady().then(^{ }=>^{ }{const w=new BrowserWindow({width:1000,height:700});w.loadFile(path.join(__dirname,'app/index.html'));}); > main.js
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Build EXE
+        run: npm run build
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: built-exe
+          path: dist/*.exe
