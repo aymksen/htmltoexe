@@ -4,8 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HTML to EXE</title>
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        /* Import Google Font */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         
         * {
@@ -16,6 +18,7 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
         
+        /* Glassmorphism effect for main container */
         .glass {
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(20px);
@@ -24,6 +27,7 @@
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
+        /* Glassmorphism effect when dragging over */
         .glass.drag-over {
             background: rgba(102, 126, 234, 0.15);
             border: 2px dashed #667eea;
@@ -31,6 +35,7 @@
             box-shadow: 0 30px 60px rgba(102, 126, 234, 0.3);
         }
         
+        /* Glassmorphism effect for cards */
         .glass-card {
             background: rgba(255, 255, 255, 0.6);
             backdrop-filter: blur(10px);
@@ -38,6 +43,7 @@
             border: 1px solid rgba(255, 255, 255, 0.5);
         }
         
+        /* Primary button styling */
         .btn-primary {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -53,10 +59,12 @@
             cursor: not-allowed;
         }
         
+        /* Hide default file input button */
         input[type="file"]::file-selector-button {
             display: none;
         }
         
+        /* Upload area hover effect */
         .upload-area {
             transition: all 0.3s ease;
         }
@@ -65,6 +73,7 @@
             background: rgba(102, 126, 234, 0.05);
         }
         
+        /* Drag indicator overlay */
         .drag-indicator {
             position: absolute;
             inset: 0;
@@ -77,6 +86,7 @@
             opacity: 0;
             pointer-events: none;
             transition: opacity 0.3s ease;
+            z-index: 10; /* Ensure it's above other elements */
         }
         
         .drag-indicator.active {
@@ -96,24 +106,10 @@
                 transform: translateY(-20px);
             }
         }
-        
-        .pulse {
-            animation: pulse 2s ease-in-out infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% {
-                opacity: 1;
-            }
-            50% {
-                opacity: 0.5;
-            }
-        }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
     <div id="dropZone" class="glass rounded-3xl shadow-2xl p-8 max-w-md w-full relative">
-        <!-- Drag Indicator Overlay -->
         <div id="dragIndicator" class="drag-indicator">
             <div class="text-center">
                 <div class="drag-icon">📄</div>
@@ -121,14 +117,12 @@
             </div>
         </div>
 
-        <!-- Header -->
         <div class="text-center mb-8">
             <div class="text-6xl mb-4">📦</div>
             <h1 class="text-3xl font-bold text-gray-800 mb-2">HTML to EXE</h1>
             <p class="text-gray-600 text-sm">Self-building executable generator</p>
         </div>
 
-        <!-- How it works -->
         <div class="glass-card rounded-2xl p-5 mb-6">
             <div class="space-y-3">
                 <div class="flex items-center space-x-3">
@@ -146,7 +140,6 @@
             </div>
         </div>
 
-        <!-- Upload -->
         <label class="upload-area block glass-card rounded-2xl p-6 text-center cursor-pointer mb-4">
             <div class="text-4xl mb-2">📄</div>
             <div class="text-sm font-medium text-gray-700 mb-1">Choose HTML file</div>
@@ -154,24 +147,20 @@
             <input type="file" id="fileInput" accept=".html" class="hidden">
         </label>
 
-        <!-- File name display -->
-        <div id="fileName" class="hidden glass-card rounded-xl p-3 mb-4 text-center">
+        <div id="fileNameDisplay" class="hidden glass-card rounded-xl p-3 mb-4 text-center">
             <span class="text-sm font-medium text-gray-700"></span>
         </div>
 
-        <!-- Generate button -->
         <button id="generateBtn" disabled
             class="btn-primary w-full text-white py-4 rounded-2xl font-semibold text-base shadow-lg mb-4">
             Generate
         </button>
 
-        <!-- Status -->
-        <div id="status" class="hidden text-center p-3 rounded-xl text-sm font-medium"></div>
+        <div id="statusMessage" class="hidden text-center p-3 rounded-xl text-sm font-medium"></div>
 
-        <!-- Info -->
         <div class="mt-6 text-center">
             <p class="text-xs text-gray-600 leading-relaxed">
-                Requires Python. The .py file auto-installs PyInstaller and builds the .exe when double-clicked.
+                Requires Python installed.
             </p>
         </div>
     </div>
@@ -181,12 +170,12 @@
         const dragIndicator = document.getElementById('dragIndicator');
         const fileInput = document.getElementById('fileInput');
         const generateBtn = document.getElementById('generateBtn');
-        const status = document.getElementById('status');
-        const fileName = document.getElementById('fileName');
+        const statusMessage = document.getElementById('statusMessage');
+        const fileNameDisplay = document.getElementById('fileNameDisplay');
         let htmlFile = null;
         let dragCounter = 0;
 
-        // Prevent default drag behaviors
+        // Prevent default drag behaviors to allow file drop
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             dropZone.addEventListener(eventName, preventDefaults, false);
             document.body.addEventListener(eventName, preventDefaults, false);
@@ -197,27 +186,26 @@
             e.stopPropagation();
         }
 
-        // Drag enter
+        // Handle drag enter/leave for visual feedback on the drop zone
         dropZone.addEventListener('dragenter', (e) => {
             dragCounter++;
-            if (dragCounter === 1) {
+            if (dragCounter === 1) { // Only add class on first 'dragenter'
                 dropZone.classList.add('drag-over');
                 dragIndicator.classList.add('active');
             }
         });
 
-        // Drag leave
         dropZone.addEventListener('dragleave', (e) => {
             dragCounter--;
-            if (dragCounter === 0) {
+            if (dragCounter === 0) { // Only remove class when no more elements are dragged over
                 dropZone.classList.remove('drag-over');
                 dragIndicator.classList.remove('active');
             }
         });
 
-        // Drop
+        // Handle file drop event
         dropZone.addEventListener('drop', (e) => {
-            dragCounter = 0;
+            dragCounter = 0; // Reset drag counter
             dropZone.classList.remove('drag-over');
             dragIndicator.classList.remove('active');
             
@@ -227,37 +215,57 @@
             }
         });
 
-        // Click to upload
+        // Handle file input change event (when user clicks "Choose HTML file")
         fileInput.addEventListener('change', (e) => {
             if (e.target.files.length > 0) {
                 handleFile(e.target.files[0]);
             }
         });
 
+        // Function to process the selected/dropped file
         function handleFile(file) {
             if (file && file.name.endsWith('.html')) {
                 htmlFile = file;
-                generateBtn.disabled = false;
-                fileName.classList.remove('hidden');
-                fileName.querySelector('span').textContent = file.name;
-                showStatus('✓ ' + file.name, 'success');
+                generateBtn.disabled = false; // Enable generate button
+                fileNameDisplay.classList.remove('hidden');
+                fileNameDisplay.querySelector('span').textContent = file.name;
+                showStatus('✓ File selected: ' + file.name, 'success');
             } else {
-                showStatus('Please upload an HTML file', 'error');
+                // If file is not HTML or no file, reset state
+                htmlFile = null;
+                generateBtn.disabled = true;
+                fileNameDisplay.classList.add('hidden');
+                fileNameDisplay.querySelector('span').textContent = '';
+                showStatus('Please upload a valid HTML file.', 'error');
             }
         }
 
+        // Event listener for the Generate button
         generateBtn.addEventListener('click', async () => {
-            if (!htmlFile) return;
+            if (!htmlFile) {
+                showStatus('No HTML file selected!', 'error');
+                return;
+            }
 
-            showStatus('Generating...', 'info');
+            showStatus('Generating Python script...', 'info');
 
             const reader = new FileReader();
             reader.onload = async (e) => {
                 const htmlContent = e.target.result;
-                const name = htmlFile.name.replace('.html', '').replace(/[^a-zA-Z0-9-]/g, '_');
+                // Clean the file name for use as APP_NAME and Python file name
+                const baseName = htmlFile.name.replace('.html', '').replace(/[^a-zA-Z0-9-]/g, '_');
+
+                // CRITICAL ESCAPING:
+                // Escape backslashes first, then double quotes, then newlines, and finally triple quotes.
+                // This ensures the Python string literal is correctly formed, even if the HTML contains complex characters.
+                const escapedHtml = htmlContent
+                    .replace(/\\/g, '\\\\')    // Escape literal backslashes
+                    .replace(/"/g, '\\"')      // Escape double quotes
+                    .replace(/\n/g, '\\n')     // Escape newlines
+                    .replace(/"""/g, '\\"\\"\\"'); // Escape triple double quotes (important for Python multiline strings)
 
                 const pythonScript = `#!/usr/bin/env python3
-"""${name} - Self-Building HTML Launcher"""
+"""${baseName} - Self-Building HTML Launcher"""
 
 import http.server
 import socketserver
@@ -266,74 +274,28 @@ import sys
 import os
 import subprocess
 import time
-from threading import Timer, Thread
+from threading import Timer
 from pathlib import Path
-from datetime import datetime
 
-APP_NAME = "${name}"
+APP_NAME = "${baseName}"
 
-# Heartbeat tracking
-last_heartbeat = None
-shutdown_flag = False
-
-HTML_TEMPLATE = """${htmlContent.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/`/g, '\\`')}"""
-
-# Inject heartbeat JavaScript into HTML
-HTML_CONTENT = HTML_TEMPLATE.replace('</body>', '''
-<script>
-// Send heartbeat every 2 seconds
-setInterval(() => {
-    fetch('/__heartbeat__').catch(() => {});
-}, 2000);
-
-// Send close signal when tab closes
-window.addEventListener('beforeunload', () => {
-    navigator.sendBeacon('/__close__');
-});
-</script>
-</body>''')
+# HTML content to be served. All original triple quotes must be escaped.
+HTML_CONTENT = """${escapedHtml}"""
 
 class Handler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
-        global last_heartbeat, shutdown_flag
-        
-        # Handle heartbeat
-        if self.path == '/__heartbeat__':
-            last_heartbeat = time.time()
-            self.send_response(200)
-            self.send_header('Content-type', 'text/plain')
-            self.end_headers()
-            self.wfile.write(b'ok')
-            return
-        
-        # Handle close signal
-        if self.path == '/__close__':
-            shutdown_flag = True
-            self.send_response(200)
-            self.send_header('Content-type', 'text/plain')
-            self.end_headers()
-            self.wfile.write(b'closing')
-            return
-        
-        # Serve HTML
+        # Serve the HTML content for all GET requests
         self.send_response(200)
         self.send_header('Content-type', 'text/html; charset=utf-8')
         self.end_headers()
         self.wfile.write(HTML_CONTENT.encode('utf-8'))
     
-    def do_POST(self):
-        # Handle close beacon
-        if self.path == '/__close__':
-            global shutdown_flag
-            shutdown_flag = True
-            self.send_response(200)
-            self.end_headers()
-    
     def log_message(self, format, *args):
+        # Suppress server logs for cleaner output
         pass
 
 def find_free_port(start_port=8000, max_attempts=10):
-    """Find an available port"""
+    """Finds an available port to run the HTTP server on."""
     import socket
     for port in range(start_port, start_port + max_attempts):
         try:
@@ -345,6 +307,7 @@ def find_free_port(start_port=8000, max_attempts=10):
     return None
 
 def check_pyinstaller():
+    """Checks if PyInstaller is installed."""
     try:
         import PyInstaller
         return True
@@ -352,153 +315,148 @@ def check_pyinstaller():
         return False
 
 def install_pyinstaller():
-    print("Installing PyInstaller...")
+    """Installs PyInstaller using pip."""
+    print("Installing PyInstaller (this may take a moment)...")
     try:
         subprocess.check_call([sys.executable, "-m", "pip", "install", "pyinstaller"])
+        print("PyInstaller installed successfully.")
         return True
-    except:
+    except Exception as e:
+        print(f"Failed to install PyInstaller: {e}")
         return False
 
 def build_exe():
+    """Builds the executable using PyInstaller."""
     script_path = Path(__file__).resolve()
     script_dir = script_path.parent
-    
-    print("Building executable...")
-    print(f"Output: {script_dir / (APP_NAME + '.exe')}")
-    
+    print(f"Building executable for '{APP_NAME}'...")
+    print(f"Output will be in: {script_dir}")
     try:
-        subprocess.run([
+        # PyInstaller command with options
+        # --onefile: Creates a single executable file
+        # --noconsole: Suppresses the console window (for GUI apps)
+        # --name: Sets the name of the executable
+        # --distpath: Specifies the output directory
+        # --workpath, --specpath: Sets temporary directories
+        result = subprocess.run([
             sys.executable, "-m", "PyInstaller",
             "--onefile", "--noconsole", "--name", APP_NAME,
             "--distpath", str(script_dir),
             "--workpath", str(script_dir / "build_temp"),
             "--specpath", str(script_dir / "build_temp"),
             str(script_path)
-        ], capture_output=True)
-        
+        ], capture_output=True, text=True) # Capture output for better error reporting
+
         exe_path = script_dir / f"{APP_NAME}.exe"
-        
         if exe_path.exists():
             print(f"\\n✅ Success! Your .exe is ready at:\\n{exe_path}")
-            
+            # Clean up temporary build files
             import shutil
-            build_dir = script_dir / "build_temp"
-            if build_dir.exists():
-                shutil.rmtree(build_dir)
+            build_temp_dir = script_dir / "build_temp"
+            if build_temp_dir.exists():
+                shutil.rmtree(build_temp_dir)
+            spec_file = script_dir / f"{APP_NAME}.spec"
+            if spec_file.exists():
+                os.remove(spec_file)
             return True
-        return False
+        else:
+            print(f"\\n❌ Failed to create {APP_NAME}.exe.")
+            print("PyInstaller output:")
+            print(result.stdout)
+            print(result.stderr)
+            return False
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"An error occurred during PyInstaller build: {e}")
         return False
-
-def monitor_heartbeat(httpd):
-    """Monitor for browser close and shutdown server"""
-    global last_heartbeat, shutdown_flag
-    
-    while not shutdown_flag:
-        time.sleep(1)
-        
-        # Check if we've received any heartbeats
-        if last_heartbeat is not None:
-            # If no heartbeat for 8 seconds, assume browser closed
-            if time.time() - last_heartbeat > 8:
-                print("Browser closed - shutting down...")
-                shutdown_flag = True
-                httpd.shutdown()
-                break
-        
-        # Check shutdown flag
-        if shutdown_flag:
-            httpd.shutdown()
-            break
 
 def run_server():
-    global last_heartbeat, shutdown_flag
-    last_heartbeat = None
-    shutdown_flag = False
-    
+    """Starts the HTTP server and opens the browser."""
     port = find_free_port()
-    
     if port is None:
-        print("❌ Could not find available port")
+        print("Error: Could not find an available port.")
         input("Press Enter to exit...")
         return
+    print(f"Serving '{APP_NAME}' at http://localhost:{port}")
+    print("Close the browser window to stop the server (you may need to close a console window as well).")
     
-    print(f"Starting {APP_NAME} on http://localhost:{port}")
-    print("Close the browser tab to stop the server")
-    
-    def open_browser():
+    def open_browser_after_delay():
         webbrowser.open(f'http://localhost:{port}')
     
     try:
         with socketserver.TCPServer(("", port), Handler) as httpd:
-            # Open browser after 1 second
-            Timer(1.0, open_browser).start()
-            
-            # Start heartbeat monitor in background
-            monitor_thread = Thread(target=monitor_heartbeat, args=(httpd,), daemon=True)
-            monitor_thread.start()
-            
-            # Run server
-            httpd.serve_forever()
-            
+            # Open browser after a short delay to ensure server is ready
+            Timer(0.5, open_browser_after_delay).start()
+            httpd.serve_forever() # Start serving requests (runs indefinitely)
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Server error: {e}")
 
 def main():
+    """Main logic to either run the server or build the executable."""
     if getattr(sys, 'frozen', False):
+        # If running as a PyInstaller executable, just run the server
         run_server()
         return
     
+    # If running as a .py script, check for existing exe and offer to rebuild
     exe_path = Path(__file__).resolve().parent / f"{APP_NAME}.exe"
-    
     if exe_path.exists():
-        response = input("Rebuild .exe? (y/n): ").strip().lower()
+        response = input(f"'{APP_NAME}.exe' already exists. Rebuild? (y/N): ").strip().lower()
         if response != 'y':
+            print("Skipping rebuild. Running application...")
             run_server()
             return
     
+    # Check and install PyInstaller if needed
     if not check_pyinstaller():
         if not install_pyinstaller():
-            print("Failed to install PyInstaller")
+            print("Cannot proceed without PyInstaller. Exiting.")
             return
-    
+            
+    # Build the executable
     if build_exe():
-        response = input("\\nRun now? (y/n): ").strip().lower()
+        response = input("\\nRun the newly created .exe now? (y/N): ").strip().lower()
         if response == 'y':
+            print("Running application...")
             run_server()
+    else:
+        print("Executable build failed. Please check the output for errors.")
+    input("Press Enter to exit...") # Keep console open after actions complete
 
 if __name__ == "__main__":
     main()
 `;
-
+                // Create a Blob from the Python script string
                 const blob = new Blob([pythonScript], { type: 'text/plain' });
+                // Create a URL for the Blob
                 const url = URL.createObjectURL(blob);
+                // Create a temporary anchor element to trigger the download
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `${name}_autobuilder.py`;
+                a.download = `${baseName}_autobuilder.py`; // Suggested file name
                 document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+                a.click(); // Programmatically click the anchor to start download
+                document.body.removeChild(a); // Clean up the temporary anchor
+                URL.revokeObjectURL(url); // Release the Blob URL
 
-                showStatus('✓ Downloaded!', 'success');
+                showStatus('✓ Python script downloaded successfully!', 'success');
                 setTimeout(() => {
-                    showStatus('Double-click the .py file to build .exe', 'info');
+                    showStatus('Now, double-click the downloaded .py file to build your .exe!', 'info');
                 }, 1500);
             };
 
+            // Read the uploaded HTML file content as text
             reader.readAsText(htmlFile);
         });
 
+        // Function to display status messages to the user
         function showStatus(message, type) {
-            status.className = `text-center p-3 rounded-xl text-sm font-medium ${
+            statusMessage.className = `text-center p-3 rounded-xl text-sm font-medium ${
                 type === 'success' ? 'bg-green-100 text-green-800' :
                 type === 'error' ? 'bg-red-100 text-red-800' :
                 'bg-blue-100 text-blue-800'
             }`;
-            status.textContent = message;
-            status.classList.remove('hidden');
+            statusMessage.textContent = message;
+            statusMessage.classList.remove('hidden');
         }
     </script>
 </body>
