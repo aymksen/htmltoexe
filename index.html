@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HTML to Server Launcher</title>
+    <title>HTML to EXE - No Token Required</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
     <div id="root"></div>
@@ -18,31 +19,36 @@
             const [htmlFile, setHtmlFile] = useState(null);
             const [fileName, setFileName] = useState('');
             const [status, setStatus] = useState('');
+            const [showInstructions, setShowInstructions] = useState(false);
 
             const handleFileUpload = (event) => {
                 const file = event.target.files[0];
                 if (file && file.name.endsWith('.html')) {
                     setHtmlFile(file);
-                    setFileName(file.name.replace('.html', ''));
-                    setStatus('File loaded successfully!');
+                    const name = file.name.replace('.html', '').replace(/[^a-zA-Z0-9-]/g, '-');
+                    setFileName(name);
+                    setStatus('✅ HTML file loaded!');
                 } else {
-                    setStatus('Please upload a valid HTML file');
+                    setStatus('❌ Please upload a valid HTML file');
                     setHtmlFile(null);
                 }
             };
 
-            const generateLauncher = async () => {
+            const generateZip = async () => {
                 if (!htmlFile) {
-                    setStatus('Please upload an HTML file first');
+                    setStatus('❌ Please upload an HTML file first');
                     return;
                 }
 
-                const reader = new FileReader();
-                reader.onload = async (e) => {
-                    const htmlContent = e.target.result;
+                try {
+                    setStatus('📦 Creating ZIP package...');
                     
-                    // Create Python launcher script
-                    const pythonContent = `#!/usr/bin/env python3
+                    const reader = new FileReader();
+                    reader.onload = async (e) => {
+                        const htmlContent = e.target.result;
+                        
+                        // Create Python launcher
+                        const pythonContent = `#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 ${fileName} Launcher
@@ -55,10 +61,8 @@ import webbrowser
 import sys
 from threading import Timer
 
-# Port to run the server on
 PORT = 8000
 
-# Embedded HTML content
 HTML_CONTENT = """${htmlContent.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')}"""
 
 class CustomHandler(http.server.SimpleHTTPRequestHandler):
@@ -69,16 +73,13 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(HTML_CONTENT.encode('utf-8'))
     
     def log_message(self, format, *args):
-        # Suppress log messages for cleaner output
         pass
 
 def open_browser():
-    """Open the default web browser after a short delay"""
     webbrowser.open(f'http://localhost:{PORT}')
 
 def main():
     try:
-        # Try to start server on PORT
         with socketserver.TCPServer(("", PORT), CustomHandler) as httpd:
             print(f"========================================")
             print(f"  ${fileName} Server")
@@ -86,19 +87,15 @@ def main():
             print(f"Server running at http://localhost:{PORT}")
             print(f"Press Ctrl+C to stop the server")
             print(f"========================================\\n")
-            
-            # Open browser after 1 second
             Timer(1.0, open_browser).start()
-            
-            # Start serving
             httpd.serve_forever()
     except KeyboardInterrupt:
         print("\\n\\nServer stopped.")
         sys.exit(0)
     except OSError as e:
-        if e.errno == 98 or e.errno == 10048:  # Address already in use
+        if e.errno == 98 or e.errno == 10048:
             print(f"Error: Port {PORT} is already in use.")
-            print(f"Please close any other programs using this port and try again.")
+            print(f"Please close any other programs using this port.")
         else:
             print(f"Error: {e}")
         input("\\nPress Enter to exit...")
@@ -108,115 +105,372 @@ if __name__ == "__main__":
     main()
 `;
 
-                    // Create and download the Python file
-                    const blob = new Blob([pythonContent], { type: 'text/plain' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `${fileName}_launcher.py`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
+                        // Create GitHub Actions workflow
+                        const workflowContent = `name: Build EXE
 
-                    setStatus('Python launcher generated! See instructions below to convert to .exe');
-                };
-                reader.readAsText(htmlFile);
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install PyInstaller
+      run: pip install pyinstaller
+    
+    - name: Build EXE
+      run: pyinstaller --onefile --noconsole --name "${fileName}" ${fileName}_launcher.py
+    
+    - name: Upload EXE as Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${fileName}-exe
+        path: dist/${fileName}.exe
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v\${{ github.run_number }}
+        name: ${fileName} v\${{ github.run_number }}
+        files: dist/${fileName}.exe
+        body: |
+          ## 🚀 ${fileName} Launcher
+          
+          **Download the .exe file below and double-click to launch!**
+          
+          ### What it does:
+          - Starts a local web server
+          - Opens your browser automatically
+          - Runs ${fileName} instantly
+          
+          No Python or additional software required!
+          
+          ---
+          Built automatically with GitHub Actions ⚡
+      env:
+        GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+`;
+
+                        // Create README
+                        const readmeContent = `# ${fileName} Launcher 🚀
+
+An automatically-built Windows launcher for **${fileName}**.
+
+## 📥 Download
+
+**[Go to Releases →](../../releases)** and download the latest \`.exe\` file.
+
+## 🎯 How to Use
+
+1. Download the \`.exe\` file from the Releases page
+2. Double-click to run it
+3. Your browser will automatically open with ${fileName}!
+
+That's it! No installation needed.
+
+## 🔧 What's Inside
+
+This launcher:
+- ✅ Embeds your complete HTML application
+- ✅ Runs a local web server (port 8000)
+- ✅ Automatically opens your default browser
+- ✅ Works without Python installation
+- ✅ Single executable file
+
+## 🛠️ Technical Details
+
+- **Built with:** Python + PyInstaller
+- **Build System:** GitHub Actions (automated)
+- **Platform:** Windows (.exe)
+- **Server:** Python HTTP server
+- **Port:** 8000 (localhost)
+
+## 🔄 Updating
+
+To rebuild with changes:
+1. Update \`${fileName}_launcher.py\` with your new HTML
+2. Commit and push to GitHub
+3. GitHub Actions will automatically build a new .exe
+4. Check the Releases page for the updated version
+
+## 📝 License
+
+This launcher was auto-generated and contains embedded HTML content.
+
+---
+
+**Need help?** Check the [Actions tab](../../actions) to see build status.
+`;
+
+                        // Create INSTRUCTIONS file
+                        const instructionsContent = `🎯 SETUP INSTRUCTIONS
+=====================
+
+Follow these steps to get your .exe file:
+
+STEP 1: Create GitHub Repository
+---------------------------------
+1. Go to: https://github.com/new
+2. Repository name: ${fileName}-launcher (or any name you like)
+3. ✅ Make it PUBLIC (required for free GitHub Actions)
+4. ✅ Check "Add a README file"
+5. Click "Create repository"
+
+STEP 2: Upload Files
+--------------------
+METHOD A - Web Upload (Easiest):
+1. On your new repository page, click "uploading an existing file"
+2. Drag ALL files from this ZIP into the upload area:
+   - ${fileName}_launcher.py
+   - README.md
+   - .github/workflows/build.yml
+3. Make sure to create the folder structure:
+   .github/
+     └── workflows/
+         └── build.yml
+4. Scroll down and click "Commit changes"
+
+METHOD B - Using Git (Advanced):
+1. Extract this ZIP to a folder
+2. Open terminal/command prompt in that folder
+3. Run these commands:
+   git init
+   git add .
+   git commit -m "Initial commit"
+   git remote add origin https://github.com/YOUR_USERNAME/${fileName}-launcher.git
+   git push -u origin main
+
+STEP 3: Wait for Build
+-----------------------
+1. Go to the "Actions" tab in your repository
+2. You'll see "Build EXE" workflow running
+3. Wait about 2-3 minutes for it to complete
+4. ✅ Green checkmark = Success!
+
+STEP 4: Download Your EXE
+--------------------------
+1. Go to the "Releases" section (right side of repository page)
+2. Click on the latest release
+3. Download the .exe file
+4. Double-click to run!
+
+🎉 DONE! Your HTML app is now a standalone .exe file!
+
+TROUBLESHOOTING
+---------------
+- Build failed? Check the Actions tab for error messages
+- No Releases? Make sure the workflow completed successfully
+- Permission error? Make sure repository is PUBLIC
+
+Need help? Check GitHub Actions documentation or the build logs.
+`;
+
+                        // Create ZIP file using JSZip
+                        const zip = new JSZip();
+                        
+                        // Add Python launcher
+                        zip.file(`${fileName}_launcher.py`, pythonContent);
+                        
+                        // Add README
+                        zip.file('README.md', readmeContent);
+                        
+                        // Add instructions
+                        zip.file('INSTRUCTIONS.txt', instructionsContent);
+                        
+                        // Add workflow in correct folder structure
+                        zip.folder('.github').folder('workflows').file('build.yml', workflowContent);
+                        
+                        // Generate ZIP
+                        const zipBlob = await zip.generateAsync({type: 'blob'});
+                        
+                        // Download ZIP
+                        const url = URL.createObjectURL(zipBlob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `${fileName}-launcher-package.zip`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        
+                        setStatus('✅ ZIP package downloaded! Open INSTRUCTIONS.txt inside.');
+                        setShowInstructions(true);
+                    };
+                    
+                    reader.readAsText(htmlFile);
+                    
+                } catch (error) {
+                    setStatus('❌ Error: ' + error.message);
+                }
             };
 
             return (
-                <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4">
+                <div className="min-h-screen bg-gradient-to-br from-green-50 via-blue-50 to-purple-50 py-8 px-4">
                     <div className="max-w-4xl mx-auto">
-                        <div className="bg-white rounded-lg shadow-xl p-8">
-                            <h1 className="text-4xl font-bold text-gray-800 mb-2 text-center">
-                                HTML to Server Launcher
-                            </h1>
-                            <p className="text-gray-600 text-center mb-8">
-                                Convert your HTML file into a standalone launcher
-                            </p>
-
-                            <div className="mb-8">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Upload HTML File
-                                </label>
-                                <input
-                                    type="file"
-                                    accept=".html"
-                                    onChange={handleFileUpload}
-                                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
-                                />
+                        <div className="bg-white rounded-xl shadow-2xl p-8">
+                            <div className="text-center mb-8">
+                                <h1 className="text-5xl font-bold text-gray-800 mb-3">
+                                    🎁 HTML to EXE
+                                </h1>
+                                <p className="text-xl text-gray-600 mb-2">
+                                    No Token Required - Just Upload & Download!
+                                </p>
+                                <div className="inline-block bg-green-100 text-green-800 px-4 py-2 rounded-full text-sm font-semibold mt-2">
+                                    ✨ 100% Browser-Based • No Authentication Needed
+                                </div>
                             </div>
 
+                            {/* How it works */}
+                            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 p-5 mb-6 rounded-r-lg">
+                                <h3 className="font-bold text-gray-800 mb-2 text-lg">🎯 How This Works:</h3>
+                                <ol className="list-decimal list-inside text-gray-700 space-y-1 text-sm">
+                                    <li>Upload your HTML file here</li>
+                                    <li>Click "Generate Package" to download a ZIP</li>
+                                    <li>Upload the ZIP contents to a new GitHub repository</li>
+                                    <li>GitHub automatically builds your .exe (takes ~2 min)</li>
+                                    <li>Download from Releases - Done! 🎉</li>
+                                </ol>
+                            </div>
+
+                            {/* Upload Form */}
+                            <div className="space-y-4 mb-6">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-3">
+                                        📄 Upload Your HTML File
+                                    </label>
+                                    <input
+                                        type="file"
+                                        accept=".html"
+                                        onChange={handleFileUpload}
+                                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gradient-to-r file:from-blue-500 file:to-indigo-500 file:text-white hover:file:from-blue-600 hover:file:to-indigo-600 cursor-pointer"
+                                    />
+                                </div>
+
+                                {fileName && (
+                                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                                        <p className="text-sm text-green-800">
+                                            <strong>✅ Ready:</strong> {fileName}.html
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <button
+                                onClick={generateZip}
+                                disabled={!htmlFile}
+                                className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-4 px-6 rounded-lg font-bold text-lg hover:from-green-600 hover:to-emerald-700 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed transition duration-200 shadow-lg transform hover:scale-105"
+                            >
+                                📦 Generate Package (ZIP)
+                            </button>
+
+                            {/* Status */}
                             {status && (
-                                <div className={`mb-6 p-4 rounded-lg ${status.includes('success') ? 'bg-green-50 text-green-800' : 'bg-blue-50 text-blue-800'}`}>
-                                    {status}
+                                <div className={`mt-6 p-4 rounded-lg ${
+                                    status.includes('❌') ? 'bg-red-50 text-red-800 border border-red-200' : 
+                                    'bg-green-50 text-green-800 border border-green-200'
+                                }`}>
+                                    <p className="font-semibold text-center">{status}</p>
                                 </div>
                             )}
 
-                            <div className="mb-8">
-                                <button
-                                    onClick={generateLauncher}
-                                    disabled={!htmlFile}
-                                    className="w-full bg-indigo-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition duration-200 text-lg"
-                                >
-                                    🚀 Generate Launcher
-                                </button>
-                            </div>
-
-                            <div className="bg-gray-50 rounded-lg p-6 space-y-4">
-                                <h2 className="text-xl font-semibold text-gray-800">📋 How to Use:</h2>
-                                
-                                <div className="space-y-4">
-                                    <div className="bg-white border-2 border-indigo-500 rounded-lg p-4">
-                                        <h3 className="font-bold text-gray-800 text-lg mb-3">Step 1: Generate Launcher</h3>
-                                        <ol className="list-decimal list-inside text-gray-700 space-y-2 ml-2">
-                                            <li>Upload your HTML file above</li>
-                                            <li>Click the "Generate Launcher" button</li>
-                                            <li>A <code className="bg-gray-200 px-2 py-1 rounded">.py</code> file will download</li>
-                                        </ol>
-                                    </div>
-
-                                    <div className="bg-white border-2 border-green-500 rounded-lg p-4">
-                                        <h3 className="font-bold text-gray-800 text-lg mb-3">Step 2: Convert to .EXE (One-Click Launch)</h3>
-                                        <div className="space-y-3">
-                                            <div className="bg-blue-50 border border-blue-200 rounded p-3">
-                                                <p className="font-semibold text-blue-900 mb-2">🔹 Option A: PyInstaller (Recommended)</p>
-                                                <ol className="list-decimal list-inside text-sm text-gray-700 space-y-1 ml-2">
-                                                    <li>Install Python from <a href="https://www.python.org/downloads/" target="_blank" className="text-indigo-600 hover:underline font-medium">python.org</a></li>
-                                                    <li>Open Command Prompt and run: <code className="bg-white px-2 py-1 rounded border text-xs block mt-1">pip install pyinstaller</code></li>
-                                                    <li>Navigate to your launcher file's folder</li>
-                                                    <li>Run: <code className="bg-white px-2 py-1 rounded border text-xs block mt-1">pyinstaller --onefile --noconsole yourfile_launcher.py</code></li>
-                                                    <li>Find your .exe in the <code className="bg-gray-200 px-1 rounded">dist</code> folder!</li>
-                                                </ol>
+                            {/* Instructions after download */}
+                            {showInstructions && (
+                                <div className="mt-8 bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-300 rounded-xl p-6">
+                                    <h3 className="font-bold text-gray-800 text-xl mb-4 flex items-center">
+                                        <span className="text-2xl mr-2">📝</span>
+                                        Next Steps
+                                    </h3>
+                                    
+                                    <div className="space-y-4">
+                                        <div className="bg-white rounded-lg p-4 shadow-sm">
+                                            <div className="flex items-start">
+                                                <span className="bg-blue-500 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold mr-3 flex-shrink-0">1</span>
+                                                <div>
+                                                    <p className="font-semibold text-gray-800">Extract the ZIP file</p>
+                                                    <p className="text-sm text-gray-600">Open INSTRUCTIONS.txt for detailed steps</p>
+                                                </div>
                                             </div>
+                                        </div>
 
-                                            <div className="bg-purple-50 border border-purple-200 rounded p-3">
-                                                <p className="font-semibold text-purple-900 mb-2">🔹 Option B: Auto PY to EXE (GUI Tool - Easiest!)</p>
-                                                <ol className="list-decimal list-inside text-sm text-gray-700 space-y-1 ml-2">
-                                                    <li>Install: <code className="bg-white px-2 py-1 rounded border text-xs">pip install auto-py-to-exe</code></li>
-                                                    <li>Run: <code className="bg-white px-2 py-1 rounded border text-xs">auto-py-to-exe</code></li>
-                                                    <li>Select your .py file in the GUI</li>
-                                                    <li>Choose "One File" and "Window Based"</li>
-                                                    <li>Click "Convert" - done!</li>
-                                                </ol>
+                                        <div className="bg-white rounded-lg p-4 shadow-sm">
+                                            <div className="flex items-start">
+                                                <span className="bg-green-500 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold mr-3 flex-shrink-0">2</span>
+                                                <div>
+                                                    <p className="font-semibold text-gray-800">Create GitHub repository</p>
+                                                    <a href="https://github.com/new" target="_blank" className="text-sm text-blue-600 hover:underline font-medium">
+                                                        → Go to github.com/new
+                                                    </a>
+                                                    <p className="text-xs text-gray-500 mt-1">Must be PUBLIC for free Actions</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-white rounded-lg p-4 shadow-sm">
+                                            <div className="flex items-start">
+                                                <span className="bg-purple-500 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold mr-3 flex-shrink-0">3</span>
+                                                <div>
+                                                    <p className="font-semibold text-gray-800">Upload files to GitHub</p>
+                                                    <p className="text-sm text-gray-600">Drag & drop the ZIP contents</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-white rounded-lg p-4 shadow-sm">
+                                            <div className="flex items-start">
+                                                <span className="bg-orange-500 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold mr-3 flex-shrink-0">4</span>
+                                                <div>
+                                                    <p className="font-semibold text-gray-800">Wait 2 minutes for build</p>
+                                                    <p className="text-sm text-gray-600">Check the Actions tab</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-gradient-to-r from-yellow-100 to-orange-100 rounded-lg p-4 shadow-sm border-2 border-yellow-400">
+                                            <div className="flex items-start">
+                                                <span className="text-2xl mr-3">🎉</span>
+                                                <div>
+                                                    <p className="font-bold text-gray-800">Download your .exe from Releases!</p>
+                                                    <p className="text-sm text-gray-700">Find it on the right side of your repo page</p>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-400 rounded-lg p-4">
-                                        <h3 className="font-bold text-gray-800 mb-2">✅ Result</h3>
-                                        <p className="text-gray-700">
-                                            You'll have a single <strong>.exe file</strong> that you can double-click to launch your HTML app with a built-in web server. 
-                                            No Python needed on other computers!
+                                    <div className="mt-4 bg-blue-100 border border-blue-300 rounded p-3">
+                                        <p className="text-xs text-blue-900">
+                                            <strong>💡 Tip:</strong> The ZIP includes detailed instructions in INSTRUCTIONS.txt. 
+                                            Follow them step-by-step and you'll have your .exe in minutes!
                                         </p>
                                     </div>
                                 </div>
+                            )}
 
-                                <div className="bg-yellow-50 border border-yellow-300 rounded p-4 mt-4">
-                                    <p className="text-sm text-yellow-900">
-                                        <strong>💡 Note:</strong> The generated .py file already includes your entire HTML app inside it. 
-                                        You only need to convert the .py file to .exe once, then you can share just the .exe file!
-                                    </p>
+                            {/* Features */}
+                            <div className="mt-8 grid md:grid-cols-3 gap-4">
+                                <div className="bg-blue-50 rounded-lg p-4 text-center">
+                                    <div className="text-3xl mb-2">🔒</div>
+                                    <h4 className="font-semibold text-gray-800 mb-1">No Token</h4>
+                                    <p className="text-xs text-gray-600">No authentication needed</p>
+                                </div>
+                                <div className="bg-green-50 rounded-lg p-4 text-center">
+                                    <div className="text-3xl mb-2">⚡</div>
+                                    <h4 className="font-semibold text-gray-800 mb-1">Fast</h4>
+                                    <p className="text-xs text-gray-600">Ready in 2 minutes</p>
+                                </div>
+                                <div className="bg-purple-50 rounded-lg p-4 text-center">
+                                    <div className="text-3xl mb-2">💯</div>
+                                    <h4 className="font-semibold text-gray-800 mb-1">Free</h4>
+                                    <p className="text-xs text-gray-600">Uses free GitHub Actions</p>
                                 </div>
                             </div>
                         </div>
