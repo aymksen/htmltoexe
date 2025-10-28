@@ -41,104 +41,85 @@
                 reader.onload = async (e) => {
                     const htmlContent = e.target.result;
                     
-                    // Create batch file content
-                    const batContent = `@echo off
-title ${fileName} Server Launcher
-echo ========================================
-echo   ${fileName} Server Launcher
-echo ========================================
-echo.
-echo Starting local web server...
-echo.
+                    // Create Python launcher script
+                    const pythonContent = `#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+${fileName} Launcher
+Auto-generated HTML launcher with embedded web server
+"""
 
-REM Create temporary HTML file
-set TEMP_HTML=%TEMP%\\${fileName}_temp.html
-(
-${htmlContent.split('\n').map(line => `echo ${line.replace(/[&<>^|]/g, '^$&')}`).join('\n')}
-) > "%TEMP_HTML%"
+import http.server
+import socketserver
+import webbrowser
+import sys
+from threading import Timer
 
-REM Start Python server if available
-where python >nul 2>nul
-if %ERRORLEVEL% EQU 0 (
-    echo Using Python server...
-    cd /d "%TEMP%"
-    start http://localhost:8000/${fileName}_temp.html
-    python -m http.server 8000
-    goto :end
-)
+# Port to run the server on
+PORT = 8000
 
-REM Try Python3
-where python3 >nul 2>nul
-if %ERRORLEVEL% EQU 0 (
-    echo Using Python3 server...
-    cd /d "%TEMP%"
-    start http://localhost:8000/${fileName}_temp.html
-    python3 -m http.server 8000
-    goto :end
-)
+# Embedded HTML content
+HTML_CONTENT = """${htmlContent.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')}"""
 
-REM Fallback: Just open the file
-echo Python not found. Opening file directly...
-start "" "%TEMP_HTML%"
+class CustomHandler(http.server.SimpleHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        self.wfile.write(HTML_CONTENT.encode('utf-8'))
+    
+    def log_message(self, format, *args):
+        # Suppress log messages for cleaner output
+        pass
 
-:end
-pause`;
+def open_browser():
+    """Open the default web browser after a short delay"""
+    webbrowser.open(f'http://localhost:{PORT}')
 
-                    // Create and download the .bat file
-                    const blob = new Blob([batContent], { type: 'text/plain' });
+def main():
+    try:
+        # Try to start server on PORT
+        with socketserver.TCPServer(("", PORT), CustomHandler) as httpd:
+            print(f"========================================")
+            print(f"  ${fileName} Server")
+            print(f"========================================")
+            print(f"Server running at http://localhost:{PORT}")
+            print(f"Press Ctrl+C to stop the server")
+            print(f"========================================\\n")
+            
+            # Open browser after 1 second
+            Timer(1.0, open_browser).start()
+            
+            # Start serving
+            httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\\n\\nServer stopped.")
+        sys.exit(0)
+    except OSError as e:
+        if e.errno == 98 or e.errno == 10048:  # Address already in use
+            print(f"Error: Port {PORT} is already in use.")
+            print(f"Please close any other programs using this port and try again.")
+        else:
+            print(f"Error: {e}")
+        input("\\nPress Enter to exit...")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
+`;
+
+                    // Create and download the Python file
+                    const blob = new Blob([pythonContent], { type: 'text/plain' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `${fileName}_launcher.bat`;
+                    a.download = `${fileName}_launcher.py`;
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
 
-                    setStatus('Launcher generated and downloaded!');
-                };
-                reader.readAsText(htmlFile);
-            };
-
-            const generateNodeLauncher = async () => {
-                if (!htmlFile) {
-                    setStatus('Please upload an HTML file first');
-                    return;
-                }
-
-                const reader = new FileReader();
-                reader.onload = async (e) => {
-                    const htmlContent = e.target.result;
-                    
-                    // Create Node.js launcher script
-                    const nodeScript = `const http = require('http');
-const open = require('open');
-
-const htmlContent = \`${htmlContent.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`;
-
-const server = http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end(htmlContent);
-});
-
-const PORT = 8000;
-server.listen(PORT, () => {
-    console.log(\`Server running at http://localhost:\${PORT}/\`);
-    open(\`http://localhost:\${PORT}/\`);
-});`;
-
-                    // Create and download the .js file
-                    const blob = new Blob([nodeScript], { type: 'text/javascript' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `${fileName}_launcher.js`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-
-                    setStatus('Node.js launcher generated! Run with: node ' + fileName + '_launcher.js');
+                    setStatus('Python launcher generated! See instructions below to convert to .exe');
                 };
                 reader.readAsText(htmlFile);
             };
@@ -172,53 +153,69 @@ server.listen(PORT, () => {
                                 </div>
                             )}
 
-                            <div className="grid md:grid-cols-2 gap-4 mb-8">
+                            <div className="mb-8">
                                 <button
                                     onClick={generateLauncher}
                                     disabled={!htmlFile}
-                                    className="w-full bg-indigo-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition duration-200"
+                                    className="w-full bg-indigo-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition duration-200 text-lg"
                                 >
-                                    Generate .BAT Launcher
-                                </button>
-                                <button
-                                    onClick={generateNodeLauncher}
-                                    disabled={!htmlFile}
-                                    className="w-full bg-green-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition duration-200"
-                                >
-                                    Generate Node.js Launcher
+                                    🚀 Generate Launcher
                                 </button>
                             </div>
 
                             <div className="bg-gray-50 rounded-lg p-6 space-y-4">
-                                <h2 className="text-xl font-semibold text-gray-800">How to Use:</h2>
+                                <h2 className="text-xl font-semibold text-gray-800">📋 How to Use:</h2>
                                 
-                                <div className="space-y-3">
-                                    <div className="border-l-4 border-indigo-500 pl-4">
-                                        <h3 className="font-semibold text-gray-700">Option 1: .BAT Launcher</h3>
-                                        <ol className="list-decimal list-inside text-sm text-gray-600 space-y-1 mt-2">
-                                            <li>Upload your HTML file</li>
-                                            <li>Click "Generate .BAT Launcher"</li>
-                                            <li>Double-click the .bat file to run (requires Python installed)</li>
-                                            <li>Optional: Convert .bat to .exe using <a href="https://bat-to-exe-converter.en.softonic.com/" target="_blank" className="text-indigo-600 hover:underline">Bat to Exe Converter</a></li>
+                                <div className="space-y-4">
+                                    <div className="bg-white border-2 border-indigo-500 rounded-lg p-4">
+                                        <h3 className="font-bold text-gray-800 text-lg mb-3">Step 1: Generate Launcher</h3>
+                                        <ol className="list-decimal list-inside text-gray-700 space-y-2 ml-2">
+                                            <li>Upload your HTML file above</li>
+                                            <li>Click the "Generate Launcher" button</li>
+                                            <li>A <code className="bg-gray-200 px-2 py-1 rounded">.py</code> file will download</li>
                                         </ol>
                                     </div>
 
-                                    <div className="border-l-4 border-green-500 pl-4">
-                                        <h3 className="font-semibold text-gray-700">Option 2: Node.js Launcher</h3>
-                                        <ol className="list-decimal list-inside text-sm text-gray-600 space-y-1 mt-2">
-                                            <li>Upload your HTML file</li>
-                                            <li>Click "Generate Node.js Launcher"</li>
-                                            <li>Install dependencies: <code className="bg-gray-200 px-2 py-1 rounded">npm install open</code></li>
-                                            <li>Run with: <code className="bg-gray-200 px-2 py-1 rounded">node filename_launcher.js</code></li>
-                                            <li>Package to .exe using <a href="https://github.com/vercel/pkg" target="_blank" className="text-green-600 hover:underline">pkg</a></li>
-                                        </ol>
+                                    <div className="bg-white border-2 border-green-500 rounded-lg p-4">
+                                        <h3 className="font-bold text-gray-800 text-lg mb-3">Step 2: Convert to .EXE (One-Click Launch)</h3>
+                                        <div className="space-y-3">
+                                            <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                                                <p className="font-semibold text-blue-900 mb-2">🔹 Option A: PyInstaller (Recommended)</p>
+                                                <ol className="list-decimal list-inside text-sm text-gray-700 space-y-1 ml-2">
+                                                    <li>Install Python from <a href="https://www.python.org/downloads/" target="_blank" className="text-indigo-600 hover:underline font-medium">python.org</a></li>
+                                                    <li>Open Command Prompt and run: <code className="bg-white px-2 py-1 rounded border text-xs block mt-1">pip install pyinstaller</code></li>
+                                                    <li>Navigate to your launcher file's folder</li>
+                                                    <li>Run: <code className="bg-white px-2 py-1 rounded border text-xs block mt-1">pyinstaller --onefile --noconsole yourfile_launcher.py</code></li>
+                                                    <li>Find your .exe in the <code className="bg-gray-200 px-1 rounded">dist</code> folder!</li>
+                                                </ol>
+                                            </div>
+
+                                            <div className="bg-purple-50 border border-purple-200 rounded p-3">
+                                                <p className="font-semibold text-purple-900 mb-2">🔹 Option B: Auto PY to EXE (GUI Tool - Easiest!)</p>
+                                                <ol className="list-decimal list-inside text-sm text-gray-700 space-y-1 ml-2">
+                                                    <li>Install: <code className="bg-white px-2 py-1 rounded border text-xs">pip install auto-py-to-exe</code></li>
+                                                    <li>Run: <code className="bg-white px-2 py-1 rounded border text-xs">auto-py-to-exe</code></li>
+                                                    <li>Select your .py file in the GUI</li>
+                                                    <li>Choose "One File" and "Window Based"</li>
+                                                    <li>Click "Convert" - done!</li>
+                                                </ol>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-400 rounded-lg p-4">
+                                        <h3 className="font-bold text-gray-800 mb-2">✅ Result</h3>
+                                        <p className="text-gray-700">
+                                            You'll have a single <strong>.exe file</strong> that you can double-click to launch your HTML app with a built-in web server. 
+                                            No Python needed on other computers!
+                                        </p>
                                     </div>
                                 </div>
 
-                                <div className="bg-yellow-50 border border-yellow-200 rounded p-4 mt-4">
-                                    <p className="text-sm text-yellow-800">
-                                        <strong>Note:</strong> The .BAT launcher requires Python to be installed. 
-                                        The Node.js launcher requires Node.js and the 'open' package.
+                                <div className="bg-yellow-50 border border-yellow-300 rounded p-4 mt-4">
+                                    <p className="text-sm text-yellow-900">
+                                        <strong>💡 Note:</strong> The generated .py file already includes your entire HTML app inside it. 
+                                        You only need to convert the .py file to .exe once, then you can share just the .exe file!
                                     </p>
                                 </div>
                             </div>
