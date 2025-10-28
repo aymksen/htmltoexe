@@ -1,68 +1,234 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<title>HTML → EXE Converter</title>
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<style>
-body { font-family: system-ui, sans-serif; max-width: 700px; margin: 40px auto; text-align: center; }
-input[type=file] { margin: 20px 0; }
-button { padding: 10px 20px; font-size: 16px; }
-#msg { margin-top: 20px; font-size: 14px; color: #333; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML to Server Launcher</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body>
-<h1>HTML → EXE Converter</h1>
-<p>Upload a single <code>.html</code> file to build a Windows <code>.exe</code> with GitHub Actions.</p>
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState } = React;
 
-<input id="file" type="file" accept=".html">
-<button id="uploadBtn">Upload & Build</button>
+        function App() {
+            const [htmlFile, setHtmlFile] = useState(null);
+            const [fileName, setFileName] = useState('');
+            const [status, setStatus] = useState('');
 
-<div id="msg"></div>
+            const handleFileUpload = (event) => {
+                const file = event.target.files[0];
+                if (file && file.name.endsWith('.html')) {
+                    setHtmlFile(file);
+                    setFileName(file.name.replace('.html', ''));
+                    setStatus('File loaded successfully!');
+                } else {
+                    setStatus('Please upload a valid HTML file');
+                    setHtmlFile(null);
+                }
+            };
 
-<script>
-const uploadBtn = document.getElementById('uploadBtn');
-const fileInput = document.getElementById('file');
-const msg = document.getElementById('msg');
+            const generateLauncher = async () => {
+                if (!htmlFile) {
+                    setStatus('Please upload an HTML file first');
+                    return;
+                }
 
-uploadBtn.onclick = async () => {
-  const file = fileInput.files[0];
-  if (!file) return alert("Please select an HTML file first.");
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    const htmlContent = e.target.result;
+                    
+                    // Create batch file content
+                    const batContent = `@echo off
+title ${fileName} Server Launcher
+echo ========================================
+echo   ${fileName} Server Launcher
+echo ========================================
+echo.
+echo Starting local web server...
+echo.
 
-  msg.textContent = "Uploading file to GitHub repository…";
+REM Create temporary HTML file
+set TEMP_HTML=%TEMP%\\${fileName}_temp.html
+(
+${htmlContent.split('\n').map(line => `echo ${line.replace(/[&<>^|]/g, '^$&')}`).join('\n')}
+) > "%TEMP_HTML%"
 
-  // Convert to base64
-  const content = await file.text();
-  const encoded = btoa(unescape(encodeURIComponent(content)));
+REM Start Python server if available
+where python >nul 2>nul
+if %ERRORLEVEL% EQU 0 (
+    echo Using Python server...
+    cd /d "%TEMP%"
+    start http://localhost:8000/${fileName}_temp.html
+    python -m http.server 8000
+    goto :end
+)
 
-  // Replace with your username/repo
-  const username = "aymksen";
-  const repo = "html-to-exe";
+REM Try Python3
+where python3 >nul 2>nul
+if %ERRORLEVEL% EQU 0 (
+    echo Using Python3 server...
+    cd /d "%TEMP%"
+    start http://localhost:8000/${fileName}_temp.html
+    python3 -m http.server 8000
+    goto :end
+)
 
-  // Personal Access Token required with 'repo' and 'workflow' scopes
-  const token = prompt("Enter your GitHub Personal Access Token (repo + workflow scopes):");
+REM Fallback: Just open the file
+echo Python not found. Opening file directly...
+start "" "%TEMP_HTML%"
 
-  const url = `https://api.github.com/repos/${username}/${repo}/contents/input.html`;
+:end
+pause`;
 
-  const res = await fetch(url, {
-    method: "PUT",
-    headers: {
-      Authorization: "token " + token,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      message: "Upload HTML file for EXE build",
-      content: encoded,
-    }),
-  });
+                    // Create and download the .bat file
+                    const blob = new Blob([batContent], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${fileName}_launcher.bat`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
 
-  if (res.ok) {
-    msg.textContent = "✅ Uploaded! The GitHub Action will start automatically. Check the Actions tab in your repo.";
-  } else {
-    const err = await res.text();
-    msg.textContent = "❌ Error: " + err;
-  }
-};
-</script>
+                    setStatus('Launcher generated and downloaded!');
+                };
+                reader.readAsText(htmlFile);
+            };
+
+            const generateNodeLauncher = async () => {
+                if (!htmlFile) {
+                    setStatus('Please upload an HTML file first');
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    const htmlContent = e.target.result;
+                    
+                    // Create Node.js launcher script
+                    const nodeScript = `const http = require('http');
+const open = require('open');
+
+const htmlContent = \`${htmlContent.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`;
+
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(htmlContent);
+});
+
+const PORT = 8000;
+server.listen(PORT, () => {
+    console.log(\`Server running at http://localhost:\${PORT}/\`);
+    open(\`http://localhost:\${PORT}/\`);
+});`;
+
+                    // Create and download the .js file
+                    const blob = new Blob([nodeScript], { type: 'text/javascript' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${fileName}_launcher.js`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+
+                    setStatus('Node.js launcher generated! Run with: node ' + fileName + '_launcher.js');
+                };
+                reader.readAsText(htmlFile);
+            };
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4">
+                    <div className="max-w-4xl mx-auto">
+                        <div className="bg-white rounded-lg shadow-xl p-8">
+                            <h1 className="text-4xl font-bold text-gray-800 mb-2 text-center">
+                                HTML to Server Launcher
+                            </h1>
+                            <p className="text-gray-600 text-center mb-8">
+                                Convert your HTML file into a standalone launcher
+                            </p>
+
+                            <div className="mb-8">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Upload HTML File
+                                </label>
+                                <input
+                                    type="file"
+                                    accept=".html"
+                                    onChange={handleFileUpload}
+                                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
+                                />
+                            </div>
+
+                            {status && (
+                                <div className={`mb-6 p-4 rounded-lg ${status.includes('success') ? 'bg-green-50 text-green-800' : 'bg-blue-50 text-blue-800'}`}>
+                                    {status}
+                                </div>
+                            )}
+
+                            <div className="grid md:grid-cols-2 gap-4 mb-8">
+                                <button
+                                    onClick={generateLauncher}
+                                    disabled={!htmlFile}
+                                    className="w-full bg-indigo-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition duration-200"
+                                >
+                                    Generate .BAT Launcher
+                                </button>
+                                <button
+                                    onClick={generateNodeLauncher}
+                                    disabled={!htmlFile}
+                                    className="w-full bg-green-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition duration-200"
+                                >
+                                    Generate Node.js Launcher
+                                </button>
+                            </div>
+
+                            <div className="bg-gray-50 rounded-lg p-6 space-y-4">
+                                <h2 className="text-xl font-semibold text-gray-800">How to Use:</h2>
+                                
+                                <div className="space-y-3">
+                                    <div className="border-l-4 border-indigo-500 pl-4">
+                                        <h3 className="font-semibold text-gray-700">Option 1: .BAT Launcher</h3>
+                                        <ol className="list-decimal list-inside text-sm text-gray-600 space-y-1 mt-2">
+                                            <li>Upload your HTML file</li>
+                                            <li>Click "Generate .BAT Launcher"</li>
+                                            <li>Double-click the .bat file to run (requires Python installed)</li>
+                                            <li>Optional: Convert .bat to .exe using <a href="https://bat-to-exe-converter.en.softonic.com/" target="_blank" className="text-indigo-600 hover:underline">Bat to Exe Converter</a></li>
+                                        </ol>
+                                    </div>
+
+                                    <div className="border-l-4 border-green-500 pl-4">
+                                        <h3 className="font-semibold text-gray-700">Option 2: Node.js Launcher</h3>
+                                        <ol className="list-decimal list-inside text-sm text-gray-600 space-y-1 mt-2">
+                                            <li>Upload your HTML file</li>
+                                            <li>Click "Generate Node.js Launcher"</li>
+                                            <li>Install dependencies: <code className="bg-gray-200 px-2 py-1 rounded">npm install open</code></li>
+                                            <li>Run with: <code className="bg-gray-200 px-2 py-1 rounded">node filename_launcher.js</code></li>
+                                            <li>Package to .exe using <a href="https://github.com/vercel/pkg" target="_blank" className="text-green-600 hover:underline">pkg</a></li>
+                                        </ol>
+                                    </div>
+                                </div>
+
+                                <div className="bg-yellow-50 border border-yellow-200 rounded p-4 mt-4">
+                                    <p className="text-sm text-yellow-800">
+                                        <strong>Note:</strong> The .BAT launcher requires Python to be installed. 
+                                        The Node.js launcher requires Node.js and the 'open' package.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
 </body>
 </html>
