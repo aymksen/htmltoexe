@@ -3,483 +3,399 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HTML to EXE - No Token Required</title>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <title>HTML to EXE</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        * {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .glass {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .glass.drag-over {
+            background: rgba(102, 126, 234, 0.15);
+            border: 2px dashed #667eea;
+            transform: scale(1.02);
+            box-shadow: 0 30px 60px rgba(102, 126, 234, 0.3);
+        }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 40px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        input[type="file"]::file-selector-button {
+            display: none;
+        }
+        
+        .upload-area {
+            transition: all 0.3s ease;
+        }
+        
+        .upload-area:hover {
+            background: rgba(102, 126, 234, 0.05);
+        }
+        
+        .drag-indicator {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(102, 126, 234, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 1.5rem;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        
+        .drag-indicator.active {
+            opacity: 1;
+        }
+        
+        .drag-icon {
+            font-size: 4rem;
+            animation: bounce 1s ease-in-out infinite;
+        }
+        
+        @keyframes bounce {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-20px);
+            }
+        }
+        
+        .pulse {
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+    </style>
 </head>
-<body>
-    <div id="root"></div>
-    <script type="text/babel">
-        const { useState } = React;
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div id="dropZone" class="glass rounded-3xl shadow-2xl p-8 max-w-md w-full relative">
+        <!-- Drag Indicator Overlay -->
+        <div id="dragIndicator" class="drag-indicator">
+            <div class="text-center">
+                <div class="drag-icon">📄</div>
+                <div class="text-white text-2xl font-bold mt-4">Drop HTML file here</div>
+            </div>
+        </div>
 
-        function App() {
-            const [htmlFile, setHtmlFile] = useState(null);
-            const [fileName, setFileName] = useState('');
-            const [status, setStatus] = useState('');
-            const [showInstructions, setShowInstructions] = useState(false);
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <div class="text-6xl mb-4">📦</div>
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">HTML to EXE</h1>
+            <p class="text-gray-600 text-sm">Self-building executable generator</p>
+        </div>
 
-            const handleFileUpload = (event) => {
-                const file = event.target.files[0];
-                if (file && file.name.endsWith('.html')) {
-                    setHtmlFile(file);
-                    const name = file.name.replace('.html', '').replace(/[^a-zA-Z0-9-]/g, '-');
-                    setFileName(name);
-                    setStatus('✅ HTML file loaded!');
-                } else {
-                    setStatus('❌ Please upload a valid HTML file');
-                    setHtmlFile(null);
-                }
-            };
+        <!-- How it works -->
+        <div class="glass-card rounded-2xl p-5 mb-6">
+            <div class="space-y-3">
+                <div class="flex items-center space-x-3">
+                    <span class="text-2xl">1️⃣</span>
+                    <span class="text-sm text-gray-700">Upload your HTML file</span>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <span class="text-2xl">2️⃣</span>
+                    <span class="text-sm text-gray-700">Download .py file</span>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <span class="text-2xl">3️⃣</span>
+                    <span class="text-sm text-gray-700">Double-click .py → get .exe</span>
+                </div>
+            </div>
+        </div>
 
-            const generateZip = async () => {
-                if (!htmlFile) {
-                    setStatus('❌ Please upload an HTML file first');
-                    return;
-                }
+        <!-- Upload -->
+        <label class="upload-area block glass-card rounded-2xl p-6 text-center cursor-pointer mb-4">
+            <div class="text-4xl mb-2">📄</div>
+            <div class="text-sm font-medium text-gray-700 mb-1">Choose HTML file</div>
+            <div class="text-xs text-gray-500">or drag and drop anywhere</div>
+            <input type="file" id="fileInput" accept=".html" class="hidden">
+        </label>
 
-                try {
-                    setStatus('📦 Creating ZIP package...');
-                    
-                    const reader = new FileReader();
-                    reader.onload = async (e) => {
-                        const htmlContent = e.target.result;
-                        
-                        // Create Python launcher
-                        const pythonContent = `#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-${fileName} Launcher
-Auto-generated HTML launcher with embedded web server
-"""
+        <!-- File name display -->
+        <div id="fileName" class="hidden glass-card rounded-xl p-3 mb-4 text-center">
+            <span class="text-sm font-medium text-gray-700"></span>
+        </div>
+
+        <!-- Generate button -->
+        <button id="generateBtn" disabled
+            class="btn-primary w-full text-white py-4 rounded-2xl font-semibold text-base shadow-lg mb-4">
+            Generate
+        </button>
+
+        <!-- Status -->
+        <div id="status" class="hidden text-center p-3 rounded-xl text-sm font-medium"></div>
+
+        <!-- Info -->
+        <div class="mt-6 text-center">
+            <p class="text-xs text-gray-600 leading-relaxed">
+                Requires Python. The .py file auto-installs PyInstaller and builds the .exe when double-clicked.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const dragIndicator = document.getElementById('dragIndicator');
+        const fileInput = document.getElementById('fileInput');
+        const generateBtn = document.getElementById('generateBtn');
+        const status = document.getElementById('status');
+        const fileName = document.getElementById('fileName');
+        let htmlFile = null;
+        let dragCounter = 0;
+
+        // Prevent default drag behaviors
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        // Drag enter
+        dropZone.addEventListener('dragenter', (e) => {
+            dragCounter++;
+            if (dragCounter === 1) {
+                dropZone.classList.add('drag-over');
+                dragIndicator.classList.add('active');
+            }
+        });
+
+        // Drag leave
+        dropZone.addEventListener('dragleave', (e) => {
+            dragCounter--;
+            if (dragCounter === 0) {
+                dropZone.classList.remove('drag-over');
+                dragIndicator.classList.remove('active');
+            }
+        });
+
+        // Drop
+        dropZone.addEventListener('drop', (e) => {
+            dragCounter = 0;
+            dropZone.classList.remove('drag-over');
+            dragIndicator.classList.remove('active');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        // Click to upload
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            if (file && file.name.endsWith('.html')) {
+                htmlFile = file;
+                generateBtn.disabled = false;
+                fileName.classList.remove('hidden');
+                fileName.querySelector('span').textContent = file.name;
+                showStatus('✓ ' + file.name, 'success');
+            } else {
+                showStatus('Please upload an HTML file', 'error');
+            }
+        }
+
+        generateBtn.addEventListener('click', async () => {
+            if (!htmlFile) return;
+
+            showStatus('Generating...', 'info');
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const htmlContent = e.target.result;
+                const name = htmlFile.name.replace('.html', '').replace(/[^a-zA-Z0-9-]/g, '_');
+
+                const pythonScript = `#!/usr/bin/env python3
+"""${name} - Self-Building HTML Launcher"""
 
 import http.server
 import socketserver
 import webbrowser
 import sys
+import os
+import subprocess
 from threading import Timer
+from pathlib import Path
 
 PORT = 8000
+APP_NAME = "${name}"
+HTML_CONTENT = """${htmlContent.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/`/g, '\\`')}"""
 
-HTML_CONTENT = """${htmlContent.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')}"""
-
-class CustomHandler(http.server.SimpleHTTPRequestHandler):
+class Handler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
-        self.send_header('Content-type', 'text/html')
+        self.send_header('Content-type', 'text/html; charset=utf-8')
         self.end_headers()
         self.wfile.write(HTML_CONTENT.encode('utf-8'))
-    
     def log_message(self, format, *args):
         pass
 
-def open_browser():
-    webbrowser.open(f'http://localhost:{PORT}')
-
-def main():
+def check_pyinstaller():
     try:
-        with socketserver.TCPServer(("", PORT), CustomHandler) as httpd:
-            print(f"========================================")
-            print(f"  ${fileName} Server")
-            print(f"========================================")
-            print(f"Server running at http://localhost:{PORT}")
-            print(f"Press Ctrl+C to stop the server")
-            print(f"========================================\\n")
+        import PyInstaller
+        return True
+    except ImportError:
+        return False
+
+def install_pyinstaller():
+    print("Installing PyInstaller...")
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "pyinstaller"])
+        return True
+    except:
+        return False
+
+def build_exe():
+    script_path = Path(__file__).resolve()
+    script_dir = script_path.parent
+    
+    print("Building executable...")
+    print(f"Output: {script_dir / (APP_NAME + '.exe')}")
+    
+    try:
+        subprocess.run([
+            sys.executable, "-m", "PyInstaller",
+            "--onefile", "--noconsole", "--name", APP_NAME,
+            "--distpath", str(script_dir),
+            "--workpath", str(script_dir / "build_temp"),
+            "--specpath", str(script_dir / "build_temp"),
+            str(script_path)
+        ], capture_output=True)
+        
+        exe_path = script_dir / f"{APP_NAME}.exe"
+        
+        if exe_path.exists():
+            print(f"\\n✅ Success! Your .exe is ready at:\\n{exe_path}")
+            
+            import shutil
+            build_dir = script_dir / "build_temp"
+            if build_dir.exists():
+                shutil.rmtree(build_dir)
+            return True
+        return False
+    except Exception as e:
+        print(f"Error: {e}")
+        return False
+
+def run_server():
+    print(f"Starting {APP_NAME} on http://localhost:{PORT}")
+    
+    def open_browser():
+        webbrowser.open(f'http://localhost:{PORT}')
+    
+    try:
+        with socketserver.TCPServer(("", PORT), Handler) as httpd:
             Timer(1.0, open_browser).start()
             httpd.serve_forever()
     except KeyboardInterrupt:
-        print("\\n\\nServer stopped.")
         sys.exit(0)
-    except OSError as e:
-        if e.errno == 98 or e.errno == 10048:
-            print(f"Error: Port {PORT} is already in use.")
-            print(f"Please close any other programs using this port.")
-        else:
-            print(f"Error: {e}")
-        input("\\nPress Enter to exit...")
-        sys.exit(1)
+
+def main():
+    if getattr(sys, 'frozen', False):
+        run_server()
+        return
+    
+    exe_path = Path(__file__).resolve().parent / f"{APP_NAME}.exe"
+    
+    if exe_path.exists():
+        response = input("Rebuild .exe? (y/n): ").strip().lower()
+        if response != 'y':
+            run_server()
+            return
+    
+    if not check_pyinstaller():
+        if not install_pyinstaller():
+            print("Failed to install PyInstaller")
+            return
+    
+    if build_exe():
+        response = input("\\nRun now? (y/n): ").strip().lower()
+        if response == 'y':
+            run_server()
 
 if __name__ == "__main__":
     main()
 `;
 
-                        // Create GitHub Actions workflow
-                        const workflowContent = `name: Build EXE
+                const blob = new Blob([pythonScript], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${name}_autobuilder.py`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
 
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: windows-latest
-    
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-    
-    - name: Install PyInstaller
-      run: pip install pyinstaller
-    
-    - name: Build EXE
-      run: pyinstaller --onefile --noconsole --name "${fileName}" ${fileName}_launcher.py
-    
-    - name: Upload EXE as Artifact
-      uses: actions/upload-artifact@v3
-      with:
-        name: ${fileName}-exe
-        path: dist/${fileName}.exe
-    
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: v\${{ github.run_number }}
-        name: ${fileName} v\${{ github.run_number }}
-        files: dist/${fileName}.exe
-        body: |
-          ## 🚀 ${fileName} Launcher
-          
-          **Download the .exe file below and double-click to launch!**
-          
-          ### What it does:
-          - Starts a local web server
-          - Opens your browser automatically
-          - Runs ${fileName} instantly
-          
-          No Python or additional software required!
-          
-          ---
-          Built automatically with GitHub Actions ⚡
-      env:
-        GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
-`;
-
-                        // Create README
-                        const readmeContent = `# ${fileName} Launcher 🚀
-
-An automatically-built Windows launcher for **${fileName}**.
-
-## 📥 Download
-
-**[Go to Releases →](../../releases)** and download the latest \`.exe\` file.
-
-## 🎯 How to Use
-
-1. Download the \`.exe\` file from the Releases page
-2. Double-click to run it
-3. Your browser will automatically open with ${fileName}!
-
-That's it! No installation needed.
-
-## 🔧 What's Inside
-
-This launcher:
-- ✅ Embeds your complete HTML application
-- ✅ Runs a local web server (port 8000)
-- ✅ Automatically opens your default browser
-- ✅ Works without Python installation
-- ✅ Single executable file
-
-## 🛠️ Technical Details
-
-- **Built with:** Python + PyInstaller
-- **Build System:** GitHub Actions (automated)
-- **Platform:** Windows (.exe)
-- **Server:** Python HTTP server
-- **Port:** 8000 (localhost)
-
-## 🔄 Updating
-
-To rebuild with changes:
-1. Update \`${fileName}_launcher.py\` with your new HTML
-2. Commit and push to GitHub
-3. GitHub Actions will automatically build a new .exe
-4. Check the Releases page for the updated version
-
-## 📝 License
-
-This launcher was auto-generated and contains embedded HTML content.
-
----
-
-**Need help?** Check the [Actions tab](../../actions) to see build status.
-`;
-
-                        // Create INSTRUCTIONS file
-                        const instructionsContent = `🎯 SETUP INSTRUCTIONS
-=====================
-
-Follow these steps to get your .exe file:
-
-STEP 1: Create GitHub Repository
----------------------------------
-1. Go to: https://github.com/new
-2. Repository name: ${fileName}-launcher (or any name you like)
-3. ✅ Make it PUBLIC (required for free GitHub Actions)
-4. ✅ Check "Add a README file"
-5. Click "Create repository"
-
-STEP 2: Upload Files
---------------------
-METHOD A - Web Upload (Easiest):
-1. On your new repository page, click "uploading an existing file"
-2. Drag ALL files from this ZIP into the upload area:
-   - ${fileName}_launcher.py
-   - README.md
-   - .github/workflows/build.yml
-3. Make sure to create the folder structure:
-   .github/
-     └── workflows/
-         └── build.yml
-4. Scroll down and click "Commit changes"
-
-METHOD B - Using Git (Advanced):
-1. Extract this ZIP to a folder
-2. Open terminal/command prompt in that folder
-3. Run these commands:
-   git init
-   git add .
-   git commit -m "Initial commit"
-   git remote add origin https://github.com/YOUR_USERNAME/${fileName}-launcher.git
-   git push -u origin main
-
-STEP 3: Wait for Build
------------------------
-1. Go to the "Actions" tab in your repository
-2. You'll see "Build EXE" workflow running
-3. Wait about 2-3 minutes for it to complete
-4. ✅ Green checkmark = Success!
-
-STEP 4: Download Your EXE
---------------------------
-1. Go to the "Releases" section (right side of repository page)
-2. Click on the latest release
-3. Download the .exe file
-4. Double-click to run!
-
-🎉 DONE! Your HTML app is now a standalone .exe file!
-
-TROUBLESHOOTING
----------------
-- Build failed? Check the Actions tab for error messages
-- No Releases? Make sure the workflow completed successfully
-- Permission error? Make sure repository is PUBLIC
-
-Need help? Check GitHub Actions documentation or the build logs.
-`;
-
-                        // Create ZIP file using JSZip
-                        const zip = new JSZip();
-                        
-                        // Add Python launcher
-                        zip.file(`${fileName}_launcher.py`, pythonContent);
-                        
-                        // Add README
-                        zip.file('README.md', readmeContent);
-                        
-                        // Add instructions
-                        zip.file('INSTRUCTIONS.txt', instructionsContent);
-                        
-                        // Add workflow in correct folder structure
-                        zip.folder('.github').folder('workflows').file('build.yml', workflowContent);
-                        
-                        // Generate ZIP
-                        const zipBlob = await zip.generateAsync({type: 'blob'});
-                        
-                        // Download ZIP
-                        const url = URL.createObjectURL(zipBlob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `${fileName}-launcher-package.zip`;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
-                        
-                        setStatus('✅ ZIP package downloaded! Open INSTRUCTIONS.txt inside.');
-                        setShowInstructions(true);
-                    };
-                    
-                    reader.readAsText(htmlFile);
-                    
-                } catch (error) {
-                    setStatus('❌ Error: ' + error.message);
-                }
+                showStatus('✓ Downloaded!', 'success');
+                setTimeout(() => {
+                    showStatus('Double-click the .py file to build .exe', 'info');
+                }, 1500);
             };
 
-            return (
-                <div className="min-h-screen bg-gradient-to-br from-green-50 via-blue-50 to-purple-50 py-8 px-4">
-                    <div className="max-w-4xl mx-auto">
-                        <div className="bg-white rounded-xl shadow-2xl p-8">
-                            <div className="text-center mb-8">
-                                <h1 className="text-5xl font-bold text-gray-800 mb-3">
-                                    🎁 HTML to EXE
-                                </h1>
-                                <p className="text-xl text-gray-600 mb-2">
-                                    No Token Required - Just Upload & Download!
-                                </p>
-                                <div className="inline-block bg-green-100 text-green-800 px-4 py-2 rounded-full text-sm font-semibold mt-2">
-                                    ✨ 100% Browser-Based • No Authentication Needed
-                                </div>
-                            </div>
+            reader.readAsText(htmlFile);
+        });
 
-                            {/* How it works */}
-                            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 p-5 mb-6 rounded-r-lg">
-                                <h3 className="font-bold text-gray-800 mb-2 text-lg">🎯 How This Works:</h3>
-                                <ol className="list-decimal list-inside text-gray-700 space-y-1 text-sm">
-                                    <li>Upload your HTML file here</li>
-                                    <li>Click "Generate Package" to download a ZIP</li>
-                                    <li>Upload the ZIP contents to a new GitHub repository</li>
-                                    <li>GitHub automatically builds your .exe (takes ~2 min)</li>
-                                    <li>Download from Releases - Done! 🎉</li>
-                                </ol>
-                            </div>
-
-                            {/* Upload Form */}
-                            <div className="space-y-4 mb-6">
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-3">
-                                        📄 Upload Your HTML File
-                                    </label>
-                                    <input
-                                        type="file"
-                                        accept=".html"
-                                        onChange={handleFileUpload}
-                                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gradient-to-r file:from-blue-500 file:to-indigo-500 file:text-white hover:file:from-blue-600 hover:file:to-indigo-600 cursor-pointer"
-                                    />
-                                </div>
-
-                                {fileName && (
-                                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                                        <p className="text-sm text-green-800">
-                                            <strong>✅ Ready:</strong> {fileName}.html
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
-
-                            <button
-                                onClick={generateZip}
-                                disabled={!htmlFile}
-                                className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-4 px-6 rounded-lg font-bold text-lg hover:from-green-600 hover:to-emerald-700 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed transition duration-200 shadow-lg transform hover:scale-105"
-                            >
-                                📦 Generate Package (ZIP)
-                            </button>
-
-                            {/* Status */}
-                            {status && (
-                                <div className={`mt-6 p-4 rounded-lg ${
-                                    status.includes('❌') ? 'bg-red-50 text-red-800 border border-red-200' : 
-                                    'bg-green-50 text-green-800 border border-green-200'
-                                }`}>
-                                    <p className="font-semibold text-center">{status}</p>
-                                </div>
-                            )}
-
-                            {/* Instructions after download */}
-                            {showInstructions && (
-                                <div className="mt-8 bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-300 rounded-xl p-6">
-                                    <h3 className="font-bold text-gray-800 text-xl mb-4 flex items-center">
-                                        <span className="text-2xl mr-2">📝</span>
-                                        Next Steps
-                                    </h3>
-                                    
-                                    <div className="space-y-4">
-                                        <div className="bg-white rounded-lg p-4 shadow-sm">
-                                            <div className="flex items-start">
-                                                <span className="bg-blue-500 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold mr-3 flex-shrink-0">1</span>
-                                                <div>
-                                                    <p className="font-semibold text-gray-800">Extract the ZIP file</p>
-                                                    <p className="text-sm text-gray-600">Open INSTRUCTIONS.txt for detailed steps</p>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="bg-white rounded-lg p-4 shadow-sm">
-                                            <div className="flex items-start">
-                                                <span className="bg-green-500 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold mr-3 flex-shrink-0">2</span>
-                                                <div>
-                                                    <p className="font-semibold text-gray-800">Create GitHub repository</p>
-                                                    <a href="https://github.com/new" target="_blank" className="text-sm text-blue-600 hover:underline font-medium">
-                                                        → Go to github.com/new
-                                                    </a>
-                                                    <p className="text-xs text-gray-500 mt-1">Must be PUBLIC for free Actions</p>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="bg-white rounded-lg p-4 shadow-sm">
-                                            <div className="flex items-start">
-                                                <span className="bg-purple-500 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold mr-3 flex-shrink-0">3</span>
-                                                <div>
-                                                    <p className="font-semibold text-gray-800">Upload files to GitHub</p>
-                                                    <p className="text-sm text-gray-600">Drag & drop the ZIP contents</p>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="bg-white rounded-lg p-4 shadow-sm">
-                                            <div className="flex items-start">
-                                                <span className="bg-orange-500 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold mr-3 flex-shrink-0">4</span>
-                                                <div>
-                                                    <p className="font-semibold text-gray-800">Wait 2 minutes for build</p>
-                                                    <p className="text-sm text-gray-600">Check the Actions tab</p>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="bg-gradient-to-r from-yellow-100 to-orange-100 rounded-lg p-4 shadow-sm border-2 border-yellow-400">
-                                            <div className="flex items-start">
-                                                <span className="text-2xl mr-3">🎉</span>
-                                                <div>
-                                                    <p className="font-bold text-gray-800">Download your .exe from Releases!</p>
-                                                    <p className="text-sm text-gray-700">Find it on the right side of your repo page</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="mt-4 bg-blue-100 border border-blue-300 rounded p-3">
-                                        <p className="text-xs text-blue-900">
-                                            <strong>💡 Tip:</strong> The ZIP includes detailed instructions in INSTRUCTIONS.txt. 
-                                            Follow them step-by-step and you'll have your .exe in minutes!
-                                        </p>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Features */}
-                            <div className="mt-8 grid md:grid-cols-3 gap-4">
-                                <div className="bg-blue-50 rounded-lg p-4 text-center">
-                                    <div className="text-3xl mb-2">🔒</div>
-                                    <h4 className="font-semibold text-gray-800 mb-1">No Token</h4>
-                                    <p className="text-xs text-gray-600">No authentication needed</p>
-                                </div>
-                                <div className="bg-green-50 rounded-lg p-4 text-center">
-                                    <div className="text-3xl mb-2">⚡</div>
-                                    <h4 className="font-semibold text-gray-800 mb-1">Fast</h4>
-                                    <p className="text-xs text-gray-600">Ready in 2 minutes</p>
-                                </div>
-                                <div className="bg-purple-50 rounded-lg p-4 text-center">
-                                    <div className="text-3xl mb-2">💯</div>
-                                    <h4 className="font-semibold text-gray-800 mb-1">Free</h4>
-                                    <p className="text-xs text-gray-600">Uses free GitHub Actions</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
+        function showStatus(message, type) {
+            status.className = `text-center p-3 rounded-xl text-sm font-medium ${
+                type === 'success' ? 'bg-green-100 text-green-800' :
+                type === 'error' ? 'bg-red-100 text-red-800' :
+                'bg-blue-100 text-blue-800'
+            }`;
+            status.textContent = message;
+            status.classList.remove('hidden');
         }
-
-        ReactDOM.render(<App />, document.getElementById('root'));
     </script>
 </body>
 </html>
