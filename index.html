@@ -265,10 +265,10 @@ import webbrowser
 import sys
 import os
 import subprocess
-from threading import Timer
+import tkinter as tk
+from threading import Timer, Thread
 from pathlib import Path
 
-PORT = 8000
 APP_NAME = "${name}"
 HTML_CONTENT = """${htmlContent.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/`/g, '\\`')}"""
 
@@ -280,6 +280,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(HTML_CONTENT.encode('utf-8'))
     def log_message(self, format, *args):
         pass
+
+def find_free_port(start_port=8000, max_attempts=10):
+    """Find an available port"""
+    import socket
+    for port in range(start_port, start_port + max_attempts):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(('', port))
+                return port
+        except OSError:
+            continue
+    return None
 
 def check_pyinstaller():
     try:
@@ -328,18 +340,108 @@ def build_exe():
         print(f"Error: {e}")
         return False
 
+class ServerWindow:
+    def __init__(self, port, httpd):
+        self.port = port
+        self.httpd = httpd
+        self.root = tk.Tk()
+        self.root.title(f"{APP_NAME}")
+        self.root.geometry("400x200")
+        self.root.resizable(False, False)
+        
+        # Center window
+        self.root.update_idletasks()
+        x = (self.root.winfo_screenwidth() // 2) - (400 // 2)
+        y = (self.root.winfo_screenheight() // 2) - (200 // 2)
+        self.root.geometry(f"+{x}+{y}")
+        
+        # Configure style
+        self.root.configure(bg='#f0f0f0')
+        
+        # Icon label
+        icon_label = tk.Label(
+            self.root,
+            text="🚀",
+            font=("Arial", 48),
+            bg='#f0f0f0'
+        )
+        icon_label.pack(pady=20)
+        
+        # Title
+        title_label = tk.Label(
+            self.root,
+            text=f"{APP_NAME}",
+            font=("Arial", 16, "bold"),
+            bg='#f0f0f0'
+        )
+        title_label.pack()
+        
+        # Status
+        status_label = tk.Label(
+            self.root,
+            text=f"Running on http://localhost:{port}",
+            font=("Arial", 10),
+            fg="#666",
+            bg='#f0f0f0'
+        )
+        status_label.pack(pady=5)
+        
+        # Stop button
+        stop_btn = tk.Button(
+            self.root,
+            text="Stop Server",
+            font=("Arial", 12, "bold"),
+            bg="#dc3545",
+            fg="white",
+            activebackground="#c82333",
+            activeforeground="white",
+            relief="flat",
+            padx=20,
+            pady=10,
+            cursor="hand2",
+            command=self.stop_server
+        )
+        stop_btn.pack(pady=15)
+        
+        self.root.protocol("WM_DELETE_WINDOW", self.stop_server)
+    
+    def stop_server(self):
+        self.httpd.shutdown()
+        self.root.destroy()
+    
+    def run(self):
+        self.root.mainloop()
+
 def run_server():
-    print(f"Starting {APP_NAME} on http://localhost:{PORT}")
+    port = find_free_port()
+    
+    if port is None:
+        print("❌ Could not find available port")
+        input("Press Enter to exit...")
+        return
+    
+    print(f"Starting {APP_NAME} on http://localhost:{port}")
     
     def open_browser():
-        webbrowser.open(f'http://localhost:{PORT}')
+        webbrowser.open(f'http://localhost:{port}')
     
     try:
-        with socketserver.TCPServer(("", PORT), Handler) as httpd:
+        with socketserver.TCPServer(("", port), Handler) as httpd:
             Timer(1.0, open_browser).start()
-            httpd.serve_forever()
-    except KeyboardInterrupt:
-        sys.exit(0)
+            
+            # Start GUI in main thread
+            window = ServerWindow(port, httpd)
+            
+            # Run server in background thread
+            server_thread = Thread(target=httpd.serve_forever, daemon=True)
+            server_thread.start()
+            
+            # Run GUI (blocks until window closed)
+            window.run()
+            
+    except Exception as e:
+        print(f"Error: {e}")
+        input("Press Enter to exit...")
 
 def main():
     if getattr(sys, 'frozen', False):
